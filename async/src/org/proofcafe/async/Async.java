@@ -9,9 +9,9 @@ public abstract class Async<A> {
 	protected Async() {
 	}
 
-	protected abstract void execInternal(Context context, Object token, Cont<A> cont);
+	protected abstract void execInternal(Context context, Object token, Cont<A> cont, Runnable ifFail);
 
-	public final void exec(Context context, final Cont<A> cont, final boolean withDialog) {
+	public final void exec(Context context, final Cont<A> cont, final Runnable ifFail, final boolean withDialog) {
 		final AsyncListener listener = listener(context);
 		final Object token = new Object();
 		
@@ -31,16 +31,45 @@ public abstract class Async<A> {
 					}
 				});
 			}
-		});
+		}, ifFail);
+	}
+	
+	public final void exec(Context context, Cont<A> cont, boolean showDialog) {
+		exec(context, 
+			cont, 
+			new Runnable(){public void run() {}}, 
+			showDialog);
+	}
+	
+	public final void exec(Context context, boolean showDialog) {
+		exec(context, 
+			new Cont<A>(){public void apply(A a) {}}, 
+			new Runnable(){public void run() {}}, 
+			showDialog);
+	}
+	
+	public final void exec(Context context, Runnable ifFail) {
+		exec(context, new Cont<A>(){public void apply(A a) {}}, ifFail, true);
+	}
+	
+	public final void exec(Context context, Cont<A> cont, Runnable ifFail) {
+		exec(context, cont, ifFail, true);
 	}
 	
 	public final void exec(Context context, Cont<A> cont) {
-		exec(context, cont, true);
+		exec(context, cont, new Runnable(){
+			public void run() {
+				// pass
+			}}, true);
 	}
 
 	public final void exec(Context context) {
-		exec(context , new Cont<A>() {
+		exec(context, new Cont<A>() {
 			public void apply(A a) {
+				// pass
+			}
+		}, new Runnable() {
+			public void run() {
 				// pass
 			}
 		}, true);
@@ -70,8 +99,8 @@ public abstract class Async<A> {
 		}.get();
 	}
 
-	protected final void runInternal(Context listener, Object token, Cont<A> cont) {
-		execInternal(listener, token, cont);
+	protected final void runInternal(Context listener, Object token, Cont<A> cont, Runnable ifFail) {
+		execInternal(listener, token, cont, ifFail);
 	}
 
 	// 本来は extends Async<B> としたかったが、eclipseのコンパイラのバグのためできなかった．
@@ -99,7 +128,7 @@ public abstract class Async<A> {
 		}
 
 		private final class Proxy extends Async<B> {
-			private void doit(A a, Context listener, Object token, Cont<B> cont) {
+			private void doit(A a, Context listener, Object token, Cont<B> cont, Runnable ifFail) {
 				Async<B> async;
 				try {
 					async = f(a);
@@ -107,33 +136,33 @@ public abstract class Async<A> {
 					Log.d("Async", "Async cancelled at:" + Bind.this.getClass());
 					return;
 				}
-				async.runInternal(listener, token, cont);
+				async.runInternal(listener, token, cont, ifFail);
 			}
 
 			@Override
-			protected void execInternal(final Context listener, final Object token, final Cont<B> cont) {
+			protected void execInternal(final Context listener, final Object token, final Cont<B> cont, final Runnable ifFail) {
 				Async.this.runInternal(listener, null, new Cont<A>() {
 					public void apply(final A a) {
 						if (runInUiThread == null || runInUiThread.booleanValue() == Util.isInUiThread()) {
 							// run in the current thread
-							doit(a, listener, token, cont);
+							doit(a, listener, token, cont, ifFail);
 						} else if (runInUiThread) {
 							// run in the ui thread
 							Util.runInUiThread(new Runnable() {
 								public void run() {
-									doit(a, listener, token, cont);
+									doit(a, listener, token, cont, ifFail);
 								}
 							});
 						} else {
 							// run in background
 							Util.runInBackground(new Runnable() {
 								public void run() {
-									doit(a, listener, token, cont);
+									doit(a, listener, token, cont, ifFail);
 								}
 							});
 						}
 					}
-				});
+				}, ifFail);
 			}
 		}
 	}

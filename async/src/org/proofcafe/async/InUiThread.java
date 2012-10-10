@@ -10,13 +10,14 @@ public abstract class InUiThread<A> extends Async<A> {
 	}
 
 	@Override
-	protected void execInternal(Context listener, Object token, final Cont<A> cont) {
+	protected void execInternal(final Context context, final Object token, final Cont<A> cont, final Runnable ifFail) {
 		if (Util.isInUiThread()) {
 			try {
 				cont.apply(doInUiThread());
 			} catch (AsyncCancelledException e) {
 				Log.d("Async", "Async is cancelled at:" + InUiThread.this.getClass());
-				// FIXME signal cancellation (hide progress dialog)
+				Util.listener(context).onAsyncEnd(token, InUiThread.this);
+				ifFail.run();
 			}
 		} else {
 			// switch into ui thread
@@ -26,7 +27,8 @@ public abstract class InUiThread<A> extends Async<A> {
 						cont.apply(doInUiThread());
 					} catch (AsyncCancelledException e) {
 						Log.d("Async", "Async is cancelled at:" + InUiThread.this.getClass());
-						// FIXME signal cancellation (hide progress dialog)
+						Util.listener(context).onAsyncEnd(token, InUiThread.this);
+						ifFail.run();
 					}
 				}
 			});

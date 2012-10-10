@@ -1,5 +1,6 @@
 package org.proofcafe.async;
 
+import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
@@ -44,5 +45,17 @@ public class Util {
 	public static AsyncListener listener(Object l) {
 		return l instanceof AsyncListener ? (AsyncListener)l : nullListener;
 	}
-
+	
+	public static OnError onErrorListener(Context context) {
+		return context instanceof OnError ? (OnError)context : new OnError() {
+			@Override
+			public void onNetworkFailure(Exception e, Cont<Boolean> cont, Async<?> extra) {
+				cont.apply(false);
+			}
+			@Override
+			public void onGeneralError(CanFail res, Cont<Void> cont, Async<?> extra) {
+				cont.apply(null);
+			}
+		};
+	}
 }

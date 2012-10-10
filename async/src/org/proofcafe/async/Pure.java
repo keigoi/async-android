@@ -16,7 +16,7 @@ public class Pure<A> extends Async<A> {
 	}
 
 	@Override
-	final protected void execInternal(Context context, Object token, final Cont<A> cont) {
+	final protected void execInternal(Context context, Object token, final Cont<A> cont, Runnable ifFail) {
 		cont.apply(result);
 	}
 	

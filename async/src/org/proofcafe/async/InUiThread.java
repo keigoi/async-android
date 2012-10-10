@@ -1,5 +1,6 @@
 package org.proofcafe.async;
 
+import android.content.Context;
 import android.util.Log;
 
 public abstract class InUiThread<A> extends Async<A> {
@@ -9,7 +10,7 @@ public abstract class InUiThread<A> extends Async<A> {
 	}
 
 	@Override
-	void execInternal(Object listener, Object token, final Cont<A> cont) {
+	protected void execInternal(Context listener, Object token, final Cont<A> cont) {
 		if (Util.isInUiThread()) {
 			try {
 				cont.apply(doInUiThread());

@@ -5,19 +5,19 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 
-class Util {
-	static Handler uiHandler = new Handler(Looper.getMainLooper()) {
+public class Util {
+	private static Handler uiHandler = new Handler(Looper.getMainLooper()) {
 		@Override
 		public void handleMessage(Message msg) {
 			super.handleMessage(msg);
 		}
 	};
 
-	static boolean isInUiThread() {
+	public static boolean isInUiThread() {
 		return Looper.getMainLooper().getThread() == Thread.currentThread();
 	}
 
-	static void runInBackground(final Runnable r) {
+	public static void runInBackground(final Runnable r) {
 		// make use of the thread pool in AsyncTask
 		new AsyncTask<Void, Void, Void>() {
 			protected Void doInBackground(Void... params) {
@@ -27,29 +27,22 @@ class Util {
 		}.execute();
 	}
 
-	static void runInUiThread(Runnable r) {
+	public static void runInUiThread(Runnable r) {
 		uiHandler.post(r);
 	}
 
-	private static final Listener nullListener = new Listener() {
-		public void onErrorRetry(Object token, Runnable retry) {
+	private static final AsyncListener nullListener = new AsyncListener() {
+		@Override
+		public void onAsyncStart(Object token, boolean showDialog) {
 		}
 
-		public void onBackgroundStart(Object token) {
-		}
-
-		public void onBackgroundEnd(Object token) {
-		}
-
-		public void onAsyncStart(Object token) {
-		}
-
+		@Override
 		public void onAsyncEnd(Object token) {
 		}
 	};
 
-	static Listener listener(Object l) {
-		return l instanceof Listener ? (Listener)l : nullListener;
+	public static AsyncListener listener(Object l) {
+		return l instanceof AsyncListener ? (AsyncListener)l : nullListener;
 	}
 
 }

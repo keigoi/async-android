@@ -1,5 +1,6 @@
 package org.proofcafe.async;
 
+import android.content.Context;
 import android.util.Log;
 import static org.proofcafe.async.Util.*;
 
@@ -8,15 +9,20 @@ public abstract class Async<A> {
 	protected Async() {
 	}
 
-	abstract void execInternal(Object listener, Object token, Cont<A> cont);
+	protected abstract void execInternal(Context context, Object token, Cont<A> cont);
 
-	public final void exec(Object l, final Cont<A> cont) {
-		final Listener listener = listener(l);
+	public final void exec(Context context, final Cont<A> cont, final boolean withDialog) {
+		final AsyncListener listener = listener(context);
 		final Object token = new Object();
 		
-		listener.onAsyncStart(token);
+		Util.runInUiThread(new Runnable() {
+			@Override
+			public void run() {
+				listener.onAsyncStart(token, withDialog);
+			}
+		});
 		
-		runInternal(l, token, new Cont<A>() {
+		runInternal(context, token, new Cont<A>() {
 			public void apply(final A a) {
 				Util.runInUiThread(new Runnable() {
 					public void run() {
@@ -27,13 +33,17 @@ public abstract class Async<A> {
 			}
 		});
 	}
+	
+	public final void exec(Context context, Cont<A> cont) {
+		exec(context, cont, true);
+	}
 
-	public final void exec(Object listener) {
-		exec(listener, new Cont<A>() {
+	public final void exec(Context context) {
+		exec(context , new Cont<A>() {
 			public void apply(A a) {
 				// pass
 			}
-		});
+		}, true);
 	}
 
 	public <B> Async<B> bind(final Async<B> that) {
@@ -60,7 +70,7 @@ public abstract class Async<A> {
 		}.get();
 	}
 
-	protected final void runInternal(Object listener, Object token, Cont<A> cont) {
+	protected final void runInternal(Context listener, Object token, Cont<A> cont) {
 		execInternal(listener, token, cont);
 	}
 
@@ -89,20 +99,19 @@ public abstract class Async<A> {
 		}
 
 		private final class Proxy extends Async<B> {
-			private void doit(A a, Object listener, Object token, Cont<B> cont) {
+			private void doit(A a, Context listener, Object token, Cont<B> cont) {
 				Async<B> async;
 				try {
 					async = f(a);
 				} catch (AsyncCancelledException e) {
 					Log.d("Async", "Async cancelled at:" + Bind.this.getClass());
-					// FIXME
 					return;
 				}
 				async.runInternal(listener, token, cont);
 			}
 
 			@Override
-			void execInternal(final Object listener, final Object token, final Cont<B> cont) {
+			protected void execInternal(final Context listener, final Object token, final Cont<B> cont) {
 				Async.this.runInternal(listener, null, new Cont<A>() {
 					public void apply(final A a) {
 						if (runInUiThread == null || runInUiThread.booleanValue() == Util.isInUiThread()) {

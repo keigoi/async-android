@@ -1,5 +1,7 @@
 package org.proofcafe.async;
 
+import android.content.Context;
+
 
 /**
  * 何もせずコンストラクタに渡された引数を次のAsyncに渡す．
@@ -14,7 +16,7 @@ public class Pure<A> extends Async<A> {
 	}
 
 	@Override
-	final void execInternal(Object context, Object token, final Cont<A> cont) {
+	final protected void execInternal(Context context, Object token, final Cont<A> cont) {
 		cont.apply(result);
 	}
 	

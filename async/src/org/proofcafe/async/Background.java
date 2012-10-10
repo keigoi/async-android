@@ -62,7 +62,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 									}});
 							} else {
 								// 終了
-								Util.listener(context).onAsyncEnd(token);
+								Util.listener(context).onAsyncEnd(token, Background.this);
 							}
 						}
 					}, Background.this);
@@ -77,7 +77,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 					onErrorListener(context).onGeneralError(result, new Cont<Void>() {
 						@Override
 						public void apply(Void a) {
-							Util.listener(context).onAsyncEnd(token);
+							Util.listener(context).onAsyncEnd(token, Background.this);
 						}
 					}, Background.this);
 				}

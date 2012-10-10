@@ -18,7 +18,7 @@ public abstract class Async<A> {
 		Util.runInUiThread(new Runnable() {
 			@Override
 			public void run() {
-				listener.onAsyncStart(token, withDialog);
+				listener.onAsyncStart(token, Async.this, withDialog);
 			}
 		});
 		
@@ -27,7 +27,7 @@ public abstract class Async<A> {
 				Util.runInUiThread(new Runnable() {
 					public void run() {
 						cont.apply(a);
-						listener.onAsyncEnd(token);
+						listener.onAsyncEnd(token, Async.this);
 					}
 				});
 			}

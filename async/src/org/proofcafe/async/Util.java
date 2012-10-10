@@ -33,11 +33,11 @@ public class Util {
 
 	private static final AsyncListener nullListener = new AsyncListener() {
 		@Override
-		public void onAsyncStart(Object token, boolean showDialog) {
+		public void onAsyncStart(Object token, Async<?> toStart, boolean showDialog) {
 		}
 
 		@Override
-		public void onAsyncEnd(Object token) {
+		public void onAsyncEnd(Object token, Async<?> ended) {
 		}
 	};
 

@@ -58,7 +58,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 								Util.runInBackground(new Runnable() {
 									@Override
 									public void run() {
-										doIt(context, token, cont, ifFail);
+										runInternal(context, token, cont, ifFail);
 									}});
 							} else {
 								// 終了

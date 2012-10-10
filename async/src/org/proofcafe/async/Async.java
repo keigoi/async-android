@@ -5,13 +5,37 @@ import android.util.Log;
 import static org.proofcafe.async.Util.*;
 
 public abstract class Async<A> {
+	
+	private volatile boolean interrupted = false;
 
 	protected Async() {
 	}
 
 	protected abstract void execInternal(Context context, Object token, Cont<A> cont, Runnable ifFail);
+	
+	public void interrupt() {
+		this.interrupted = true;
+		Log.e("async", "interrupted");
+	}
+	
+	protected void resetInterrupt() {
+		this.interrupted = false;
+	}
+
+	protected final void runInternal(final Context context, final Object token, Cont<A> cont, final Runnable ifFail) {
+		if(interrupted) {
+			Util.runInUiThread(new Runnable(){
+				public void run() {
+					ifFail.run();
+					listener(context).onAsyncEnd(token, Async.this);
+				}});
+		} else {
+			execInternal(context, token, cont, ifFail);
+		}
+	}
 
 	public final void exec(Context context, final Cont<A> cont, final Runnable ifFail, final boolean withDialog) {
+		resetInterrupt();
 		final AsyncListener listener = listener(context);
 		final Object token = new Object();
 		
@@ -75,7 +99,7 @@ public abstract class Async<A> {
 		}, true);
 	}
 
-	public <B> Async<B> bind(final Async<B> that) {
+	public final <B> Async<B> bind(final Async<B> that) {
 		return new Bind<B>() {
 			protected Async<B> f(A a) {
 				return that;
@@ -83,7 +107,7 @@ public abstract class Async<A> {
 		}.get();
 	}
 
-	public <B> Async<B> bindInUiThread(final Async<B> that) {
+	public final <B> Async<B> bindInUiThread(final Async<B> that) {
 		return new BindInUiThread<B>() {
 			protected Async<B> f(A a) {
 				return that;
@@ -91,16 +115,12 @@ public abstract class Async<A> {
 		}.get();
 	}
 
-	public <B> Async<B> bindBackground(final Async<B> that) {
+	public final <B> Async<B> bindBackground(final Async<B> that) {
 		return new BindBackground<B>() {
 			protected Async<B> f(A a) {
 				return that;
 			}
 		}.get();
-	}
-
-	protected final void runInternal(Context listener, Object token, Cont<A> cont, Runnable ifFail) {
-		execInternal(listener, token, cont, ifFail);
 	}
 
 	// 本来は extends Async<B> としたかったが、eclipseのコンパイラのバグのためできなかった．
@@ -128,19 +148,36 @@ public abstract class Async<A> {
 		}
 
 		private final class Proxy extends Async<B> {
-			private void doit(A a, Context listener, Object token, Cont<B> cont, Runnable ifFail) {
-				Async<B> async;
+			Async<B> next;
+			private void doit(A a, Context context, Object token, Cont<B> cont, Runnable ifFail) {
 				try {
-					async = f(a);
+					next = f(a);
+					if(interrupted) next.interrupt();
 				} catch (AsyncCancelledException e) {
 					Log.d("Async", "Async cancelled at:" + Bind.this.getClass());
+					Util.listener(context).onAsyncEnd(token, Proxy.this);
+					ifFail.run();
 					return;
 				}
-				async.runInternal(listener, token, cont, ifFail);
+				next.runInternal(context, token, cont, ifFail);
+			}
+			
+			@Override
+			public final void interrupt() {
+				super.interrupt();
+				Async.this.interrupt();
+				if(next!=null) next.interrupt();
+			}
+			@Override
+			public final void resetInterrupt() {
+				super.resetInterrupt();
+				Async.this.resetInterrupt();
+				if(next!=null) next.resetInterrupt();
 			}
 
 			@Override
 			protected void execInternal(final Context listener, final Object token, final Cont<B> cont, final Runnable ifFail) {
+				next = null;
 				Async.this.runInternal(listener, null, new Cont<A>() {
 					public void apply(final A a) {
 						if (runInUiThread == null || runInUiThread.booleanValue() == Util.isInUiThread()) {

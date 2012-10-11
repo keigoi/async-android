@@ -1,6 +1,6 @@
 package org.proofcafe.async;
 
 public interface AsyncListener {
-	public void onAsyncStart(Object token, Async<?> toStart, boolean showDialog);
-	public void onAsyncEnd(Object token, Async<?> ended);
+	public void onAsyncStart(AsyncState state, Async<?> toStart, AsyncParam param);
+	public void onAsyncEnd(AsyncState state, Async<?> ended);
 }

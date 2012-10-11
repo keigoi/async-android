@@ -5,99 +5,90 @@ import android.util.Log;
 import static org.proofcafe.async.Util.*;
 
 public abstract class Async<A> {
-	
-	private volatile boolean interrupted = false;
 
 	protected Async() {
 	}
+	
+	public static final AsyncParam HIDE_DIALOG = new AsyncParam().hideDialog();
+	public static final AsyncParam INTERRUPTIBLE = new AsyncParam().interruptible();	
 
-	protected abstract void execInternal(Context context, Object token, Cont<A> cont, Runnable ifFail);
-	
-	public void interrupt() {
-		this.interrupted = true;
-		Log.e("async", "interrupted");
-	}
-	
-	protected void resetInterrupt() {
-		this.interrupted = false;
-	}
-	
-	public final boolean isInterrupted() {
-		return interrupted;
-	}
+	protected abstract void execInternal(Context context, AsyncState state, Cont<A> cont, Runnable ifFail);
 
-	protected final void runInternal(final Context context, final Object token, Cont<A> cont, final Runnable ifFail) {
-		if(interrupted) {
-			resetInterrupt();
+	protected final void runInternal(final Context context, AsyncState state, Cont<A> cont, final Runnable ifFail) {
+		if(state.isInterrupted()) {			
 			Util.runInUiThread(new Runnable(){
 				public void run() {
 					ifFail.run();
 				}});
 		} else {
-			execInternal(context, token, cont, ifFail);
+			execInternal(context, state, cont, ifFail);
 		}
 	}
 
-	public final void exec(final Context context, final Cont<A> cont, final Runnable ifFail, final boolean withDialog) {
-		resetInterrupt();
+	public final void exec(final Context context, final AsyncParam param, final Cont<A> cont, final Runnable ifFail) {
 		
 		final AsyncListener listener = listener(context);
-		final Object token = new Object();
+		final AsyncState state = new AsyncState(param.interruptible);
 		
 		Util.runInUiThread(new Runnable() {
 			@Override
 			public void run() {
-				listener.onAsyncStart(token, Async.this, withDialog);
+				listener.onAsyncStart(state, Async.this, param);
 				
-				runInternal(context, token, new Cont<A>() {
+				runInternal(context, state, new Cont<A>() {
 					public void apply(final A a) {
 						Util.runInUiThread(new Runnable() {
 							public void run() {
 								cont.apply(a);
-								listener.onAsyncEnd(token, Async.this);
+								listener.onAsyncEnd(state, Async.this);
 							}
 						});
 					}
 				}, new Runnable() {
 					public void run() {
 						ifFail.run();
-						listener(context).onAsyncEnd(token, Async.this);
+						listener.onAsyncEnd(state, Async.this);
 					}});
 			}
 		});
 	}
 	
-	public final void exec(Context context, Cont<A> cont, boolean showDialog) {
-		exec(context, 
+	public final void exec(Context context, AsyncParam param, Cont<A> cont) {
+		exec(context,
+			param,
 			cont, 
-			new Runnable(){public void run() {}}, 
-			showDialog);
+			new Runnable(){public void run() {}});
 	}
 	
-	public final void exec(Context context, boolean showDialog) {
+	public final void exec(Context context, AsyncParam param) {
 		exec(context, 
+			param,
 			new Cont<A>(){public void apply(A a) {}}, 
-			new Runnable(){public void run() {}}, 
-			showDialog);
+			new Runnable(){public void run() {}});
 	}
 	
-	public final void exec(Context context, Runnable ifFail) {
-		exec(context, new Cont<A>(){public void apply(A a) {}}, ifFail, true);
+	public final void exec(Context context, AsyncParam param, Runnable ifFail) {
+		exec(context, param, new Cont<A>(){public void apply(A a) {}}, ifFail);
 	}
 	
 	public final void exec(Context context, Cont<A> cont, Runnable ifFail) {
-		exec(context, cont, ifFail, true);
+		exec(context, new AsyncParam(), cont, ifFail);
 	}
 	
 	public final void exec(Context context, Cont<A> cont) {
-		exec(context, cont, new Runnable(){
+		exec(context
+			, new AsyncParam()
+			, cont
+			, new Runnable(){
 			public void run() {
 				// pass
-			}}, true);
+			}});
 	}
 
 	public final void exec(Context context) {
-		exec(context, new Cont<A>() {
+		exec(context
+		, new AsyncParam() 
+		, new Cont<A>() {
 			public void apply(A a) {
 				// pass
 			}
@@ -105,7 +96,7 @@ public abstract class Async<A> {
 			public void run() {
 				// pass
 			}
-		}, true);
+		});
 	}
 
 	public final <B> Async<B> bind(final Async<B> that) {
@@ -157,53 +148,39 @@ public abstract class Async<A> {
 		}
 
 		private final class Proxy extends Async<B> {
-			private void runBind(A a, Context context, Object token, Cont<B> cont, Runnable ifFail) {
+			private void runBind(A a, Context context, AsyncState state, Cont<B> cont, Runnable ifFail) {
 				Async<B> next;
 				try {
 					next = f(a);
-					if(interrupted) next.interrupt();
 				} catch (AsyncCancelledException e) {
 					Log.d("Async", "Async cancelled at:" + Bind.this.getClass());
 					ifFail.run();
 					return;
 				}
-				next.runInternal(context, token, cont, ifFail);
+				next.runInternal(context, state, cont, ifFail);
 			}
 			
 			@Override
-			public final void interrupt() {
-				// recursively interrupt all Asyncs
-				super.interrupt(); // the whole Bind composite
-				Async.this.interrupt(); // enclosing Async (lhs of >>=)
-			}
-			
-			@Override
-			public final void resetInterrupt() {
-				super.resetInterrupt();
-				Async.this.resetInterrupt();
-			}
-
-			@Override
-			protected void execInternal(final Context context, final Object token, final Cont<B> cont, final Runnable ifFail) {
+			protected void execInternal(final Context context, final AsyncState state, final Cont<B> cont, final Runnable ifFail) {
 				// run enclosing (aka left-hand side of >>=) Async, with a continuation that runs the next Async
-				Async.this.runInternal(context, null, new Cont<A>() {
+				Async.this.runInternal(context, state, new Cont<A>() {
 					public void apply(final A a) {
 						// after enclosing Async ends, run Bind.f
 						if (runInUiThread == null || runInUiThread.booleanValue() == Util.isInUiThread()) {
 							// run in the current thread
-							runBind(a, context, token, cont, ifFail);
+							runBind(a, context, state, cont, ifFail);
 						} else if (runInUiThread) {
 							// run in the ui thread
 							Util.runInUiThread(new Runnable() {
 								public void run() {
-									runBind(a, context, token, cont, ifFail);
+									runBind(a, context, state, cont, ifFail);
 								}
 							});
 						} else {
 							// run in background
 							Util.runInBackground(new Runnable() {
 								public void run() {
-									runBind(a, context, token, cont, ifFail);
+									runBind(a, context, state, cont, ifFail);
 								}
 							});
 						}

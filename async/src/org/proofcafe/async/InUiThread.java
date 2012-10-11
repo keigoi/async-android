@@ -10,7 +10,7 @@ public abstract class InUiThread<A> extends Async<A> {
 	}
 
 	@Override
-	protected void execInternal(final Context context, final Object token, final Cont<A> cont, final Runnable ifFail) {
+	protected void execInternal(final Context context, final AsyncState state, final Cont<A> cont, final Runnable ifFail) {
 		if (Util.isInUiThread()) {
 			doIt(cont, ifFail);
 		} else {

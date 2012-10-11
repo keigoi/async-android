@@ -34,11 +34,11 @@ public class Util {
 
 	private static final AsyncListener nullListener = new AsyncListener() {
 		@Override
-		public void onAsyncStart(Object token, Async<?> toStart, boolean showDialog) {
+		public void onAsyncStart(AsyncState state, Async<?> toStart, AsyncParam param) {
 		}
 
 		@Override
-		public void onAsyncEnd(Object token, Async<?> ended) {
+		public void onAsyncEnd(AsyncState state, Async<?> ended) {
 		}
 	};
 
@@ -49,11 +49,11 @@ public class Util {
 	public static OnError onErrorListener(Context context) {
 		return context instanceof OnError ? (OnError)context : new OnError() {
 			@Override
-			public void onNetworkFailure(Exception e, Cont<Boolean> cont, Async<?> extra) {
+			public void onNetworkFailure(AsyncState state, Exception e, Cont<Boolean> cont, Async<?> extra) {
 				cont.apply(false);
 			}
 			@Override
-			public void onGeneralError(CanFail res, Runnable ifFail, Async<?> extra) {
+			public void onGeneralError(AsyncState state, CanFail res, Runnable ifFail, Async<?> extra) {
 				ifFail.run();
 			}
 		};

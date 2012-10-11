@@ -21,20 +21,20 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 	protected abstract A doInBackground() throws Exception;
 	
 	@Override
-	protected void execInternal(final Context context, final Object token, final Cont<A> cont, final Runnable ifFail) {
+	protected void execInternal(final Context context, final AsyncState state, final Cont<A> cont, final Runnable ifFail) {
 		if (Util.isInUiThread()) {
 			// switch into background
 			Util.runInBackground(new Runnable() {
 				public void run() {
-					doIt(context, token, cont, ifFail);
+					doIt(context, state, cont, ifFail);
 				}
 			});
 		} else {
-			doIt(context, token, cont, ifFail);
+			doIt(context, state, cont, ifFail);
 		}
 	}
 	
-	private final void doIt(final Context context, final Object token, final Cont<A> cont, final Runnable ifFail) {
+	private final void doIt(final Context context, final AsyncState state, final Cont<A> cont, final Runnable ifFail) {
 		A a = null;
 		Exception e = null;
 		try {
@@ -50,7 +50,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 		if(a==null) { // ネットワークエラー 再実行すべきかどうかユーザに問い合わせ
 			Util.runInUiThread(new Runnable() {
 				public void run() {
-					Util.onErrorListener(context).onNetworkFailure(exception, new Cont<Boolean>() {
+					Util.onErrorListener(context).onNetworkFailure(state, exception, new Cont<Boolean>() {
 						@Override
 						public void apply(Boolean retry) {
 							if(retry) { 
@@ -58,7 +58,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 								Util.runInBackground(new Runnable() {
 									@Override
 									public void run() {
-										runInternal(context, token, cont, ifFail);
+										runInternal(context, state, cont, ifFail);
 									}});
 							} else {
 								// 終了
@@ -74,7 +74,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 				@Override
 				public void run() {
 					// 終了
-					Util.onErrorListener(context).onGeneralError(result, ifFail, Background.this);
+					Util.onErrorListener(context).onGeneralError(state, result, ifFail, Background.this);
 				}
 			});
 			return;

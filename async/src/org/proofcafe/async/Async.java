@@ -21,6 +21,10 @@ public abstract class Async<A> {
 	protected void resetInterrupt() {
 		this.interrupted = false;
 	}
+	
+	public final boolean isInterrupted() {
+		return interrupted;
+	}
 
 	protected final void runInternal(final Context context, final Object token, Cont<A> cont, final Runnable ifFail) {
 		if(interrupted) {

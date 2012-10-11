@@ -74,12 +74,7 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 				@Override
 				public void run() {
 					// 終了
-					Util.onErrorListener(context).onGeneralError(result, new Cont<Void>() {
-						@Override
-						public void apply(Void a) {
-							ifFail.run();
-						}
-					}, Background.this);
+					Util.onErrorListener(context).onGeneralError(result, ifFail, Background.this);
 				}
 			});
 			return;

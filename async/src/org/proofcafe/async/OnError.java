@@ -5,5 +5,5 @@ package org.proofcafe.async;
  */
 public interface OnError {
 	public void onNetworkFailure(Exception e, Cont<Boolean> cont, Async<?> extra);
-	public void onGeneralError(CanFail res, Cont<Void> cont, Async<?> extra);
+	public void onGeneralError(CanFail res, Runnable ifFail, Async<?> extra);
 }

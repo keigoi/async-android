@@ -53,8 +53,8 @@ public class Util {
 				cont.apply(false);
 			}
 			@Override
-			public void onGeneralError(CanFail res, Cont<Void> cont, Async<?> extra) {
-				cont.apply(null);
+			public void onGeneralError(CanFail res, Runnable ifFail, Async<?> extra) {
+				ifFail.run();
 			}
 		};
 	}

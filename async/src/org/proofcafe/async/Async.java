@@ -24,18 +24,19 @@ public abstract class Async<A> {
 
 	protected final void runInternal(final Context context, final Object token, Cont<A> cont, final Runnable ifFail) {
 		if(interrupted) {
+			resetInterrupt();
 			Util.runInUiThread(new Runnable(){
 				public void run() {
 					ifFail.run();
-					listener(context).onAsyncEnd(token, Async.this);
 				}});
 		} else {
 			execInternal(context, token, cont, ifFail);
 		}
 	}
 
-	public final void exec(Context context, final Cont<A> cont, final Runnable ifFail, final boolean withDialog) {
+	public final void exec(final Context context, final Cont<A> cont, final Runnable ifFail, final boolean withDialog) {
 		resetInterrupt();
+		
 		final AsyncListener listener = listener(context);
 		final Object token = new Object();
 		
@@ -43,19 +44,23 @@ public abstract class Async<A> {
 			@Override
 			public void run() {
 				listener.onAsyncStart(token, Async.this, withDialog);
+				
+				runInternal(context, token, new Cont<A>() {
+					public void apply(final A a) {
+						Util.runInUiThread(new Runnable() {
+							public void run() {
+								cont.apply(a);
+								listener.onAsyncEnd(token, Async.this);
+							}
+						});
+					}
+				}, new Runnable() {
+					public void run() {
+						ifFail.run();
+						listener(context).onAsyncEnd(token, Async.this);
+					}});
 			}
 		});
-		
-		runInternal(context, token, new Cont<A>() {
-			public void apply(final A a) {
-				Util.runInUiThread(new Runnable() {
-					public void run() {
-						cont.apply(a);
-						listener.onAsyncEnd(token, Async.this);
-					}
-				});
-			}
-		}, ifFail);
 	}
 	
 	public final void exec(Context context, Cont<A> cont, boolean showDialog) {
@@ -148,14 +153,13 @@ public abstract class Async<A> {
 		}
 
 		private final class Proxy extends Async<B> {
-			Async<B> next;
-			private void doit(A a, Context context, Object token, Cont<B> cont, Runnable ifFail) {
+			private void runBind(A a, Context context, Object token, Cont<B> cont, Runnable ifFail) {
+				Async<B> next;
 				try {
 					next = f(a);
 					if(interrupted) next.interrupt();
 				} catch (AsyncCancelledException e) {
 					Log.d("Async", "Async cancelled at:" + Bind.this.getClass());
-					Util.listener(context).onAsyncEnd(token, Proxy.this);
 					ifFail.run();
 					return;
 				}
@@ -164,37 +168,38 @@ public abstract class Async<A> {
 			
 			@Override
 			public final void interrupt() {
-				super.interrupt();
-				Async.this.interrupt();
-				if(next!=null) next.interrupt();
+				// recursively interrupt all Asyncs
+				super.interrupt(); // the whole Bind composite
+				Async.this.interrupt(); // enclosing Async (lhs of >>=)
 			}
+			
 			@Override
 			public final void resetInterrupt() {
 				super.resetInterrupt();
 				Async.this.resetInterrupt();
-				if(next!=null) next.resetInterrupt();
 			}
 
 			@Override
-			protected void execInternal(final Context listener, final Object token, final Cont<B> cont, final Runnable ifFail) {
-				next = null;
-				Async.this.runInternal(listener, null, new Cont<A>() {
+			protected void execInternal(final Context context, final Object token, final Cont<B> cont, final Runnable ifFail) {
+				// run enclosing (aka left-hand side of >>=) Async, with a continuation that runs the next Async
+				Async.this.runInternal(context, null, new Cont<A>() {
 					public void apply(final A a) {
+						// after enclosing Async ends, run Bind.f
 						if (runInUiThread == null || runInUiThread.booleanValue() == Util.isInUiThread()) {
 							// run in the current thread
-							doit(a, listener, token, cont, ifFail);
+							runBind(a, context, token, cont, ifFail);
 						} else if (runInUiThread) {
 							// run in the ui thread
 							Util.runInUiThread(new Runnable() {
 								public void run() {
-									doit(a, listener, token, cont, ifFail);
+									runBind(a, context, token, cont, ifFail);
 								}
 							});
 						} else {
 							// run in background
 							Util.runInBackground(new Runnable() {
 								public void run() {
-									doit(a, listener, token, cont, ifFail);
+									runBind(a, context, token, cont, ifFail);
 								}
 							});
 						}

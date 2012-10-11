@@ -35,15 +35,15 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 	}
 	
 	private final void doIt(final Context context, final Object token, final Cont<A> cont, final Runnable ifFail) {
-		A a;
+		A a = null;
 		Exception e = null;
 		try {
 			a = doInBackground();
 		} catch (Exception e_) {
 			e_.printStackTrace();
-			a = null;
 			e = e_;
 		}
+		
 		final A result = a;
 		final Exception exception = e;
 		
@@ -62,7 +62,6 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 									}});
 							} else {
 								// 終了
-								Util.listener(context).onAsyncEnd(token, Background.this);
 								ifFail.run();
 							}
 						}
@@ -78,7 +77,6 @@ public abstract class Background<A extends CanFail, Progress> extends Async<A> {
 					Util.onErrorListener(context).onGeneralError(result, new Cont<Void>() {
 						@Override
 						public void apply(Void a) {
-							Util.listener(context).onAsyncEnd(token, Background.this);
 							ifFail.run();
 						}
 					}, Background.this);
